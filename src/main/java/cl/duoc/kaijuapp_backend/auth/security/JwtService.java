@@ -1,0 +1,61 @@
+package cl.duoc.kaijuapp_backend.auth.security;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import cl.duoc.kaijuapp_backend.model.Usuario;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
+@Service
+public class JwtService {
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
+
+    @Value("${jwt.issuer}")
+    private String jwtIssuer;
+
+    @Value("${jwt.audience}")
+    private String jwtAudience;
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // El token lleva: sub (id), rol, iss, aud, iat y exp
+    public String generateToken(Usuario usuario, String nombreRol) {
+        Date ahora = new Date();
+        return Jwts.builder()
+                .subject(usuario.getIdUsuario().toString())
+                .claim("rol", nombreRol)
+                .issuer(jwtIssuer)
+                .audience().add(jwtAudience).and()
+                .issuedAt(ahora)
+                .expiration(new Date(ahora.getTime() + jwtExpiration))
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    // Lanza JwtException si la firma, el emisor, el destinatario o la expiración no son válidos.
+    public Claims extractClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
+                .requireIssuer(jwtIssuer)
+                .requireAudience(jwtAudience)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    public long getExpirationSeconds() {
+        return jwtExpiration / 1000;
+    }
+}
